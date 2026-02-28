@@ -753,27 +753,33 @@
         </div>
       </div>
 
-      <!-- CONTACT FORM -->
+      <!-- CONTACT FORM — powered by Formspree → smurzello10@gmail.com -->
       <form class="contact-form" id="contactForm" novalidate>
+
+        <!-- Formspree spam filter -->
+        <input type="text" name="_gotcha" style="display:none" tabindex="-1" autocomplete="off" />
+
         <div class="form-row">
           <div class="form-group">
             <label for="cf-name">Full Name *</label>
-            <input type="text" id="cf-name" placeholder="Jane Smith" />
+            <input type="text"  id="cf-name"  name="name"    placeholder="Jane Smith" />
             <div class="field-error" id="err-name"></div>
           </div>
           <div class="form-group">
             <label for="cf-email">Email Address *</label>
-            <input type="email" id="cf-email" placeholder="jane@company.com" />
+            <input type="email" id="cf-email" name="email"   placeholder="jane@company.com" />
             <div class="field-error" id="err-email"></div>
           </div>
         </div>
+
         <div class="form-group">
           <label for="cf-company">Company / Organization</label>
-          <input type="text" id="cf-company" placeholder="Acme Security Inc." />
+          <input type="text" id="cf-company" name="company"  placeholder="Acme Security Inc." />
         </div>
+
         <div class="form-group">
           <label for="cf-subject">Subject *</label>
-          <select id="cf-subject">
+          <select id="cf-subject" name="subject">
             <option value="">— Select a subject —</option>
             <option>Full-time Opportunity</option>
             <option>Contract / Freelance</option>
@@ -784,17 +790,21 @@
           </select>
           <div class="field-error" id="err-subject"></div>
         </div>
+
         <div class="form-group">
           <label for="cf-message">Message *</label>
-          <textarea id="cf-message" placeholder="Tell me about the role or project..."></textarea>
+          <textarea id="cf-message" name="message" placeholder="Tell me about the role or project..."></textarea>
           <div class="field-error" id="err-message"></div>
         </div>
+
         <div class="form-success" id="formSuccess">
           ✅ Message sent! Selwin will be in touch within 24 hours.
         </div>
-        <button type="submit" class="btn btn-primary form-submit">Send Message →</button>
-        <!-- ✏️ Wire to Formspree: replace the JS below with:
-             fetch('https://formspree.io/f/YOUR_FORM_ID', { method:'POST', body: new FormData(form) }) -->
+        <div class="form-success" id="formError" style="background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.3);color:#f87171;display:none;">
+          ⚠️ Something went wrong. Please email directly: <a href="mailto:smurzello10@gmail.com" style="color:#f87171;text-decoration:underline;">smurzello10@gmail.com</a>
+        </div>
+
+        <button type="submit" class="btn btn-primary form-submit" id="submitBtn">Send Message →</button>
       </form>
     </div>
   </div>
@@ -807,21 +817,29 @@
   </div>
 </footer>
 
-<!-- ── FORM VALIDATION JS ─────────────────────────────────────────────── -->
+<!-- ── FORM JS — validation + Formspree submission ────────────────────── -->
 <script>
-  const form = document.getElementById('contactForm');
-  const FORMSPREE_ID = 'xqedoaoq';
+  // ← Paste your Formspree Form ID here (e.g. 'xrgvkple')
+  const FORMSPREE_ID  = 'YOUR_FORM_ID';
+  const W3F_ENDPOINT  = `https://formspree.io/f/${FORMSPREE_ID}`;
+
+  const form      = document.getElementById('contactForm');
+  const btnSubmit = document.getElementById('submitBtn');
+  const elSuccess = document.getElementById('formSuccess');
+  const elError   = document.getElementById('formError');
+
+  // ── VALIDATION ────────────────────────────────────────────────────────────
+  const rules = [
+    { id: 'cf-name',    err: 'err-name',    test: v => v.trim().length >= 2,                  msg: 'Please enter your full name.' },
+    { id: 'cf-email',   err: 'err-email',   test: v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), msg: 'Please enter a valid email address.' },
+    { id: 'cf-subject', err: 'err-subject', test: v => v !== '',                               msg: 'Please select a subject.' },
+    { id: 'cf-message', err: 'err-message', test: v => v.trim().length >= 20,                 msg: 'Message must be at least 20 characters.' },
+  ];
 
   function validate() {
     let ok = true;
-    const rules = [
-      { id: 'cf-name',    err: 'err-name',    test: v => v.trim().length >= 2,                    msg: 'Please enter your full name.' },
-      { id: 'cf-email',   err: 'err-email',   test: v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v),   msg: 'Please enter a valid email address.' },
-      { id: 'cf-subject', err: 'err-subject', test: v => v !== '',                                 msg: 'Please select a subject.' },
-      { id: 'cf-message', err: 'err-message', test: v => v.trim().length >= 20,                   msg: 'Message must be at least 20 characters.' },
-    ];
     rules.forEach(r => {
-      const el = document.getElementById(r.id);
+      const el    = document.getElementById(r.id);
       const errEl = document.getElementById(r.err);
       if (!r.test(el.value)) {
         el.classList.add('error'); errEl.textContent = r.msg; ok = false;
@@ -832,16 +850,43 @@
     return ok;
   }
 
-  form.addEventListener('submit', e => {
-    e.preventDefault();
-    if (!validate()) return;
-    // Demo: show success. Replace with your Formspree/backend endpoint.
-    form.style.display = 'none';
-    success.style.display = 'block';
+  // Live validation on blur
+  rules.forEach(r => {
+    document.getElementById(r.id).addEventListener('blur', validate);
   });
 
-  ['cf-name','cf-email','cf-subject','cf-message'].forEach(id => {
-    document.getElementById(id).addEventListener('blur', validate);
+  // ── SUBMIT → WEB3FORMS ───────────────────────────────────────────────────
+  form.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    if (!validate()) return;
+
+    btnSubmit.disabled    = true;
+    btnSubmit.textContent = 'Sending…';
+    elError.style.display = 'none';
+
+    try {
+      const data = new FormData(form);
+      const res  = await fetch(W3F_ENDPOINT, {
+        method:  'POST',
+        headers: { 'Accept': 'application/json' },
+        body:    data,
+      });
+
+      const json = await res.json();
+
+      if (res.ok) {
+        form.reset();
+        form.style.display      = 'none';
+        elSuccess.style.display = 'block';
+      } else {
+        throw new Error(json.message || 'Submission failed');
+      }
+    } catch (err) {
+      console.error('Form error:', err);
+      elError.style.display = 'block';
+      btnSubmit.disabled    = false;
+      btnSubmit.textContent = 'Send Message →';
+    }
   });
 </script>
 
